@@ -21,7 +21,10 @@ class procdata(object):
     def _list(self):
         return os.listdir(self.source + "/proc")
     def _read(self, f):
-        return file(self.source + '/proc/' + f).read()
+        procfile = open(self.source + '/proc/' + f)
+        procstring = procfile.read()
+        procfile.close()
+        return procstring
     def _readlines(self, f):
         return self._read(f).splitlines(True)
     def _stat(self, f):
@@ -170,7 +173,7 @@ def pidmaps(pid):
     if options.mapfilter:
         f = {}
         for m in maps:
-            if not filter(options.mapfilter, m, lambda x: maps[x]['name']):
+            if not list(filter(options.mapfilter, m, lambda x: maps[x]['name'])):
                 f[m] = maps[m]
         return f
 
@@ -209,7 +212,7 @@ def fromunits(x):
     s = dict(k=2**10, K=2**10, kB=2**10, KB=2**10,
              M=2**20, MB=2**20, G=2**30, GB=2**30,
              T=2**40, TB=2**40)
-    for k,v in s.items():
+    for k,v in list(s.items()):
         if x.endswith(k):
             return int(float(x[:-len(k)])*v)
     sys.stderr.write("Memory size should be written with units, for example 1024M\n")
@@ -240,7 +243,7 @@ def pidtotals(pid):
     maps = pidmaps(pid)
     t = dict(size=0, rss=0, pss=0, shared_clean=0, shared_dirty=0,
              private_clean=0, private_dirty=0, referenced=0, swap=0)
-    for m in maps.iterkeys():
+    for m in list(maps.keys()):
         for k in t:
             t[k] += maps[m].get(k, 0)
 
@@ -252,15 +255,13 @@ def pidtotals(pid):
 def processtotals(pids):
     totals = {}
     for pid in pids:
-        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or
-                filter(options.userfilter, pid, pidusername)):
-            continue
         try:
             p = pidtotals(pid)
             if p['maps'] != 0:
                 totals[pid] = p
         except:
             continue
+
     return totals
 
 def showpids():
@@ -296,18 +297,17 @@ def showpids():
         )
     columns = options.columns or 'pid user command swap uss pss rss'
 
-    showtable(pt.keys(), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
 
 def maptotals(pids):
     totals = {}
     for pid in pids:
-        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or
-                filter(options.userfilter, pid, pidusername)):
+        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or filter(options.userfilter, pid, pidusername)):
             continue
         try:
             maps = pidmaps(pid)
             seen = {}
-            for m in maps.iterkeys():
+            for m in list(maps.keys()):
                 name = maps[m]['name']
                 if name not in totals:
                     t = dict(size=0, rss=0, pss=0, shared_clean=0,
@@ -361,14 +361,13 @@ def showmaps():
         )
     columns = options.columns or 'map pids avgpss pss'
 
-    showtable(pt.keys(), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
 
 def usertotals(pids):
     totals = {}
     for pid in pids:
-        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or
-                filter(options.userfilter, pid, pidusername)):
-            continue
+        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or filter(options.userfilter, pid, pidusername)):
+          continue
         try:
             maps = pidmaps(pid)
             if len(maps) == 0:
@@ -383,7 +382,7 @@ def usertotals(pids):
         else:
             t = totals[user]
 
-        for m in maps.iterkeys():
+        for m in list(maps.keys()):
             for k in t:
                 t[k] += maps[m].get(k, 0)
 
@@ -419,7 +418,7 @@ def showusers():
         )
     columns = options.columns or 'user count swap uss pss rss'
 
-    showtable(pt.keys(), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
 
 def showsystem():
     t = totalmem()
@@ -460,14 +459,14 @@ def showsystem():
               'area not reclaimable'))
 
     columns = options.columns or 'area used cache noncache'
-    showtable(range(len(l)), fields, columns.split(), options.sort or 'order')
+    showtable(list(range(len(l))), fields, columns.split(), options.sort or 'order')
 
 def showfields(fields, f):
     if f != list:
-        print "unknown field", f
-    print "known fields:"
+        print("unknown field", f)
+    print("known fields:")
     for l in sorted(fields.keys()):
-        print "%-8s %s" % (l, fields[l][-1])
+        print("%-8s %s" % (l, fields[l][-1]))
 
 def showtable(rows, fields, columns, sort):
     header = ""
@@ -518,10 +517,10 @@ def showtable(rows, fields, columns, sort):
         return
 
     if not options.no_header:
-        print header
+        print(header)
 
     for k,r in l:
-        print format % tuple([f(v) for f,v in zip(formatter, r)])
+        print(format % tuple([f(v) for f,v in zip(formatter, r)]))
 
     if options.totals:
         # totals
@@ -533,8 +532,8 @@ def showtable(rows, fields, columns, sort):
             else:
                 t.append("")
 
-        print "-" * len(header)
-        print format % tuple([f(v) for f,v in zip(formatter, t)])
+        print("-" * len(header))
+        print(format % tuple([f(v) for f,v in zip(formatter, t)]))
 
 def showpie(l, sort):
     try:
@@ -605,7 +604,7 @@ def showbar(l, columns, sort):
 
     pl = []
     ind = numpy.arange(len(l))
-    for n in xrange(len(rc)):
+    for n in range(len(rc)):
         pl.append(pylab.bar(ind + offset + width * n,
                              [x[1][rc[n]] for x in l], width, color=gc(n)))
 
@@ -682,7 +681,7 @@ try:
         showsystem()
     else:
         showpids()
-except IOError, e:
+except IOError as e:
     if e.errno == errno.EPIPE:
         pass
 except KeyboardInterrupt:
