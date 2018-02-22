@@ -21,10 +21,7 @@ class procdata(object):
     def _list(self):
         return os.listdir(self.source + "/proc")
     def _read(self, f):
-        procfile = open(self.source + '/proc/' + f)
-        procstring = procfile.read()
-        procfile.close()
-        return procstring
+        return open(self.source + '/proc/' + f).read()
     def _readlines(self, f):
         return self._read(f).splitlines(True)
     def _stat(self, f):
@@ -121,6 +118,16 @@ def totalmem():
             _totalmem = memory()['memtotal']
     return _totalmem
 
+def widthstr(field, width, default):
+    if width == 0:
+        return '%s'
+    if width < 0:
+        size = default
+    else:
+        size = width
+        ignore_autosize.add(field)
+    return '%-{size}.{size}s'.format(size=size)
+
 _kernelsize = 0
 def kernelsize():
     global _kernelsize
@@ -173,7 +180,7 @@ def pidmaps(pid):
     if options.mapfilter:
         f = {}
         for m in maps:
-            if not list(filter(options.mapfilter, m, lambda x: maps[x]['name'])):
+            if not list(filters(options.mapfilter, m, lambda x: maps[x]['name'])):
                 f[m] = maps[m]
         return f
 
@@ -230,7 +237,7 @@ def showamount(a, total):
         return "%.2f%%" % (100.0 * a / total)
     return a
 
-def filter(opt, arg, *sources):
+def filters(opt, arg, *sources):
     if not opt:
         return False
 
@@ -255,13 +262,15 @@ def pidtotals(pid):
 def processtotals(pids):
     totals = {}
     for pid in pids:
+        if (filters(options.processfilter, pid, src.pidname, src.pidcmd) or
+                filters(options.userfilter, pid, pidusername)):
+            continue
         try:
             p = pidtotals(pid)
             if p['maps'] != 0:
                 totals[pid] = p
         except:
             continue
-
     return totals
 
 def showpids():
@@ -276,11 +285,11 @@ def showpids():
     fields = dict(
         pid=('PID', lambda n: n, '% 5s', lambda x: len(pt),
              'process ID'),
-        user=('User', showuser, '%-8s', lambda x: len(dict.fromkeys(x)),
+        user=('User', showuser, widthstr('user', options.user_width, 8), lambda x: len(dict.fromkeys(x)),
               'owner of process'),
-        name=('Name', src.pidname, '%-24.24s', None,
+        name=('Name', src.pidname, widthstr('name', options.name_width, 24), None,
               'name of process'),
-        command=('Command', src.pidcmd, '%-27.27s', None,
+        command=('Command', src.pidcmd, widthstr('command', options.cmd_width, 27), None,
                  'process command line'),
         maps=('Maps',lambda n: pt[n]['maps'], '% 5s', sum,
               'total number of mappings'),
@@ -302,7 +311,8 @@ def showpids():
 def maptotals(pids):
     totals = {}
     for pid in pids:
-        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or filter(options.userfilter, pid, pidusername)):
+        if (filters(options.processfilter, pid, src.pidname, src.pidcmd) or
+                filters(options.userfilter, pid, pidusername)):
             continue
         try:
             maps = pidmaps(pid)
@@ -332,7 +342,7 @@ def showmaps():
     pt = maptotals(p)
 
     fields = dict(
-        map=('Map', lambda n: n, '%-40.40s', len,
+        map=('Map', lambda n: n, widthstr('map', options.mapping_width, 40), len,
              'mapping name'),
         count=('Count', lambda n: pt[n]['count'], '% 5s', sum,
                'number of mappings found'),
@@ -366,8 +376,9 @@ def showmaps():
 def usertotals(pids):
     totals = {}
     for pid in pids:
-        if (filter(options.processfilter, pid, src.pidname, src.pidcmd) or filter(options.userfilter, pid, pidusername)):
-          continue
+        if (filters(options.processfilter, pid, src.pidname, src.pidcmd) or
+                filters(options.userfilter, pid, pidusername)):
+            continue
         try:
             maps = pidmaps(pid)
             if len(maps) == 0:
@@ -400,7 +411,7 @@ def showusers():
         return src.username(u)
 
     fields = dict(
-        user=('User', showuser, '%-8s', None,
+        user=('User', showuser, widthstr('user', options.user_width, 8), None,
               'user name or ID'),
         count=('Count', lambda n: pt[n]['count'], '% 5s', sum,
                'number of processes'),
@@ -462,11 +473,46 @@ def showsystem():
     showtable(list(range(len(l))), fields, columns.split(), options.sort or 'order')
 
 def showfields(fields, f):
-    if f != list:
-        print("unknown field", f)
+    if type(f) in (list, set):
+        print("unknown fields: " + " ".join(f))
+    else:
+        print("unknown field %s" % f)
     print("known fields:")
-    for l in sorted(fields.keys()):
+    for l in sorted(fields):
         print("%-8s %s" % (l, fields[l][-1]))
+
+def autosize(columns, fields, rows):
+    colsizes = {}
+    for c in columns:
+        if c in ignore_autosize:
+            continue
+        sizes = [1]
+
+        if not options.no_header:
+            sizes.append(len(fields[c][0]))
+
+        if (options.abbreviate or options.percent) and 'a' in fields[c][2]:
+            sizes.append(7)
+        else:
+            for r in rows:
+                sizes.append(len(str(fields[c][1](r))))
+
+        colsizes[c] = max(sizes)
+
+    overflowcols = (set(["command", "map"]) & set(columns)) - ignore_autosize
+    if len(overflowcols) > 0:
+        overflowcol = overflowcols.pop()
+        totnoflow = sum(colsizes.values()) - colsizes[overflowcol]
+        try:
+            ttyrows, ttycolumns = os.popen('stty size', 'r').read().split()
+            ttyrows, ttycolumns = int(ttyrows), int(ttycolumns)
+        except:
+            ttyrows, ttycolumns = (24, 80)
+        maxflowcol = ttycolumns - totnoflow - len(columns)
+        maxflowcol = max(maxflowcol, 10)
+        colsizes[overflowcol] = min(colsizes[overflowcol], maxflowcol)
+
+    return colsizes
 
 def showtable(rows, fields, columns, sort):
     header = ""
@@ -485,11 +531,17 @@ def showtable(rows, fields, columns, sort):
     mt = totalmem()
     st = memory()['swaptotal']
 
-    for n in columns:
-        if n not in fields:
-            showfields(fields, n)
-            sys.exit(-1)
+    missing = set(columns) - set(fields)
+    if len(missing) > 0:
+        showfields(fields, missing)
+        sys.exit(-1)
 
+    if options.autosize:
+        colsizes = autosize(columns, fields, rows)
+    else:
+        colsizes = {}
+
+    for n in columns:
         f = fields[n][2]
         if 'a' in f:
             if n == 'swap':
@@ -499,6 +551,8 @@ def showtable(rows, fields, columns, sort):
             f = f.replace('a', 's')
         else:
             formatter.append(lambda x: x)
+        if n in colsizes:
+            f = re.sub(r"[0-9]+", str(colsizes[n]), f)
         format += f + " "
         header += f % fields[n][0] + " "
 
@@ -622,6 +676,8 @@ parser.add_option("-c", "--columns", type="str",
                   help="columns to show")
 parser.add_option("-t", "--totals", action="store_true",
                   help="show totals")
+parser.add_option("-a", "--autosize", action="store_true",
+                  help="size columns to fit terminal size")
 
 parser.add_option("-R", "--realmem", type="str",
                   help="amount of physical RAM")
@@ -662,10 +718,25 @@ parser.add_option("", "--bar", type='str',
 parser.add_option("-S", "--source", type="str",
                   help="/proc data source")
 
+parser.add_option("--cmd-width", type="int",
+                  help="Text width for commands (0=as needed)")
+parser.add_option("--name-width", type="int",
+                  help="Text width for command names (0=as needed)")
+parser.add_option("--user-width", type="int",
+                  help="Text width for user names (0=as needed)")
+parser.add_option("--mapping-width", type="int",
+                  help="Text width for mapping names (0=as needed)")
 
-defaults = {}
+
+defaults = dict(
+    cmd_width=-1,
+    name_width=-1,
+    user_width=-1,
+    mapping_width=-1,
+    )
 parser.set_defaults(**defaults)
 (options, args) = parser.parse_args()
+ignore_autosize=set()
 
 try:
     src = tardata(options.source)
