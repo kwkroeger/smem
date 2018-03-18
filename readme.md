@@ -1,6 +1,6 @@
 # smem
 
-**I did not make this software, I merely editted it for Python 3 compatibility**
+**I did not make this software, I merely edited it for Python 3 compatibility**
 
 [smem](http://www.selenic.com/smem/) is a tool that can give numerous reports on memory usage on Linux systems. Unlike existing tools, smem can report proportional set size (PSS), which is a more meaningful representation of the amount of memory used by libraries and applications in a virtual memory system.  
   
