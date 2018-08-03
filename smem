@@ -8,6 +8,8 @@
 # the GNU General Public License version 2 or later, incorporated
 # herein by reference.
 
+from __future__ import print_function
+
 import re, os, sys, pwd, optparse, errno, tarfile
 
 warned = False
