@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # smem - a tool for meaningful memory reporting
 #
@@ -10,7 +10,7 @@
 
 from __future__ import print_function
 
-import re, os, sys, pwd, optparse, errno, tarfile
+import argparse, re, os, sys, pwd, errno, tarfile
 
 warned = False
 
@@ -670,92 +670,169 @@ def showbar(l, columns, sort):
     pylab.legend([p[0] for p in pl], key)
     pylab.show()
 
+def parse_arguments(argv=None):
 
-parser = optparse.OptionParser("%prog [options]")
-parser.add_option("-H", "--no-header", action="store_true",
-                  help="disable header line")
-parser.add_option("-c", "--columns", type="str",
-                  help="columns to show")
-parser.add_option("-t", "--totals", action="store_true",
-                  help="show totals")
-parser.add_option("-a", "--autosize", action="store_true",
-                  help="size columns to fit terminal size")
-
-parser.add_option("-R", "--realmem", type="str",
-                  help="amount of physical RAM")
-parser.add_option("-K", "--kernel", type="str",
-                  help="path to kernel image")
-
-parser.add_option("-m", "--mappings", action="store_true",
-                  help="show mappings")
-parser.add_option("-u", "--users", action="store_true",
-                  help="show users")
-parser.add_option("-w", "--system", action="store_true",
-                  help="show whole system")
-
-parser.add_option("-P", "--processfilter", type="str",
-                  help="process filter regex")
-parser.add_option("-M", "--mapfilter", type="str",
-                  help="map filter regex")
-parser.add_option("-U", "--userfilter", type="str",
-                  help="user filter regex")
-
-parser.add_option("-n", "--numeric", action="store_true",
-                  help="numeric output")
-parser.add_option("-s", "--sort", type="str",
-                  help="field to sort on")
-parser.add_option("-r", "--reverse", action="store_true",
-                  help="reverse sort")
-
-parser.add_option("-p", "--percent", action="store_true",
-                  help="show percentage")
-parser.add_option("-k", "--abbreviate", action="store_true",
-                  help="show unit suffixes")
-
-parser.add_option("", "--pie", type='str',
-                  help="show pie graph")
-parser.add_option("", "--bar", type='str',
-                  help="show bar graph")
-
-parser.add_option("-S", "--source", type="str",
-                  help="/proc data source")
-
-parser.add_option("--cmd-width", type="int",
-                  help="Text width for commands (0=as needed)")
-parser.add_option("--name-width", type="int",
-                  help="Text width for command names (0=as needed)")
-parser.add_option("--user-width", type="int",
-                  help="Text width for user names (0=as needed)")
-parser.add_option("--mapping-width", type="int",
-                  help="Text width for mapping names (0=as needed)")
-
-
-defaults = dict(
-    cmd_width=-1,
-    name_width=-1,
-    user_width=-1,
-    mapping_width=-1,
+    argparser = argparse.ArgumentParser(
+        prog='smem',
+        description='''
+                    smem is a tool that can give numerous reports on memory usage on Linux systems.
+                    Unlike existing tools, smem can report proportional set size (PSS), which is a
+                    more meaningful representation of the amount of memory used by libraries and
+                    applications in a virtual memory system.
+                    ''',
+        epilog='''
+               For more information please visit:
+               https://github.com/kwkroeger/smem
+               '''
     )
-parser.set_defaults(**defaults)
-(options, args) = parser.parse_args()
-ignore_autosize=set()
 
-try:
-    src = tardata(options.source)
-except:
-    src = procdata(options.source)
+    argparser.add_argument('-H', '--no-header',
+            action='store_true',
+            help="Disable header line")
 
-try:
-    if options.mappings:
-        showmaps()
-    elif options.users:
-        showusers()
-    elif options.system:
-        showsystem()
-    else:
-        showpids()
-except IOError as e:
-    if e.errno == errno.EPIPE:
+    argparser.add_argument('-c', '--columns',
+            default=None,
+            type=str,
+            help="Columns to show")
+
+    argparser.add_argument('-t', '--totals',
+            action='store_true',
+            help="Show totals")
+
+    argparser.add_argument('-a', '--autosize',
+            action='store_true',
+            help="Size columns to fit terminal size")
+
+    argparser.add_argument('-R', '--realmem',
+            action='store_true',
+            help="Amount of physical RAM")
+
+    argparser.add_argument('-K', '--kernel',
+            default=None,
+            type=str,
+            help="Path to kernel image")
+
+    argparser.add_argument('-m', '--mappings',
+            action='store_true',
+            help="Show mappings")
+
+    argparser.add_argument('-u', '--users',
+            action='store_true',
+            help="Show users")
+
+    argparser.add_argument('-w', '--system',
+            action='store_true',
+            help="Show whole system")
+
+
+    argparser.add_argument('-P', '--processfilter',
+            default=None,
+            type=str,
+            help="Process filter regex")
+
+    argparser.add_argument('-M', '--mapfilter',
+            default=None,
+            type=str,
+            help="Process filter regex")
+
+    argparser.add_argument('-U', '--userfilter',
+            default=None,
+            type=str,
+            help="Process filter regex")
+
+
+    argparser.add_argument('-n', '--numeric',
+            action='store_true',
+            help="Process filter regex")
+
+    argparser.add_argument('-s', '--sort',
+            default=None,
+            type=str,
+            help="Field to sort on")
+
+    argparser.add_argument('-r', '--reverse',
+            action='store_true',
+            help="Reverse sort")
+
+
+    argparser.add_argument('-p', '--percent',
+            action='store_true',
+            help="Show percentage")
+
+    argparser.add_argument('-k', '--abbreviate',
+            action='store_true',
+            help="Show unit suffixes")
+
+
+    argparser.add_argument('--pie',
+            default=None,
+            type=str,
+            help="Show pie graph")
+
+    argparser.add_argument('--bar',
+            default=None,
+            type=str,
+            help="Show bar graph")
+
+
+    argparser.add_argument('-S', '--source',
+            default=None,
+            type=str,
+            help="/proc data source")
+
+
+    argparser.add_argument('--cmd-width',
+            default=-1,
+            type=int,
+            help="Text width for commands (0=as needed)")
+
+    argparser.add_argument('--name-width',
+            default=-1,
+            type=int,
+            help="Text width for command names (0=as needed)")
+
+    argparser.add_argument('--user-width',
+            default=-1,
+            type=int,
+            help="Text width for user names (0=as needed)")
+
+    argparser.add_argument('--mapping-width',
+            default=-1,
+            type=int,
+            help="Text width for mapping names (0=as needed)")
+
+    return argparser.parse_args()
+
+
+def main():
+    """Main function for compare_cpu_profiles.py"""
+
+    # TODO Remove the necessity of globals, this is a temporary workaround until functions have been updated
+    global options
+    global src
+
+    options = parse_arguments(sys.argv)
+    ignore_autosize=set()
+
+    try:
+        src = tardata(options.source)
+    except:
+        src = procdata(options.source)
+
+    try:
+        if options.mappings:
+            showmaps()
+        elif options.users:
+            showusers()
+        elif options.system:
+            showsystem()
+        else:
+            showpids()
+    except IOError as e:
+        if e.errno == errno.EPIPE:
+            pass
+    except KeyboardInterrupt:
         pass
-except KeyboardInterrupt:
-    pass
+
+if __name__ == '__main__':
+    main()
