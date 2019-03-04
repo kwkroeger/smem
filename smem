@@ -695,10 +695,6 @@ def parse_arguments(argv=None):
             type=str,
             help="Columns to show")
 
-    argparser.add_argument('-t', '--totals',
-            action='store_true',
-            help="Show totals")
-
     argparser.add_argument('-a', '--autosize',
             action='store_true',
             help="Size columns to fit terminal size")
@@ -712,94 +708,97 @@ def parse_arguments(argv=None):
             type=str,
             help="Path to kernel image")
 
-    argparser.add_argument('-m', '--mappings',
-            action='store_true',
-            help="Show mappings")
-
-    argparser.add_argument('-u', '--users',
-            action='store_true',
-            help="Show users")
-
-    argparser.add_argument('-w', '--system',
-            action='store_true',
-            help="Show whole system")
-
-
-    argparser.add_argument('-P', '--processfilter',
+    filter_group = argparser.add_argument_group('Filter')
+    filter_group.add_argument('-P', '--processfilter',
             default=None,
             type=str,
             help="Process filter regex")
 
-    argparser.add_argument('-M', '--mapfilter',
+    filter_group.add_argument('-M', '--mapfilter',
             default=None,
             type=str,
             help="Process filter regex")
 
-    argparser.add_argument('-U', '--userfilter',
+    filter_group.add_argument('-U', '--userfilter',
             default=None,
             type=str,
             help="Process filter regex")
 
-
-    argparser.add_argument('-n', '--numeric',
-            action='store_true',
-            help="Process filter regex")
-
-    argparser.add_argument('-s', '--sort',
-            default=None,
-            type=str,
-            help="Field to sort on")
-
-    argparser.add_argument('-r', '--reverse',
-            action='store_true',
-            help="Reverse sort")
-
-
-    argparser.add_argument('-p', '--percent',
-            action='store_true',
-            help="Show percentage")
-
-    argparser.add_argument('-k', '--abbreviate',
-            action='store_true',
-            help="Show unit suffixes")
-
-
-    argparser.add_argument('--pie',
+    graph_group = argparser.add_argument_group('Graph')
+    graph_group.add_argument('--pie',
             default=None,
             type=str,
             help="Show pie graph")
 
-    argparser.add_argument('--bar',
+    graph_group.add_argument('--bar',
             default=None,
             type=str,
             help="Show bar graph")
 
+    show_group = argparser.add_argument_group('Show')
+    show_group.add_argument('-m', '--mappings',
+            action='store_true',
+            help="Show mappings")
+
+    show_group.add_argument('-u', '--users',
+            action='store_true',
+            help="Show users")
+
+    show_group.add_argument('-w', '--system',
+            action='store_true',
+            help="Show whole system")
+
+    show_group.add_argument('-p', '--percent',
+            action='store_true',
+            help="Show percentage")
+
+    show_group.add_argument('-k', '--abbreviate',
+            action='store_true',
+            help="Show unit suffixes")
+
+    show_group.add_argument('-t', '--totals',
+            action='store_true',
+            help="Show totals")
+
+    sort_group = argparser.add_argument_group('Sort')
+    sort_group.add_argument('-n', '--numeric',
+            action='store_true',
+            help="Numeric sort")
+
+    sort_group.add_argument('-s', '--sort',
+            default=None,
+            type=str,
+            help="Field to sort on")
+
+    sort_group.add_argument('-r', '--reverse',
+            action='store_true',
+            help="Reverse sort")
+
+    width_group = argparser.add_argument_group('Width')
+    width_group.add_argument('--cmd-width',
+            default=-1,
+            type=int,
+            help="Text width for commands (0=as needed)")
+
+    width_group.add_argument('--name-width',
+            default=-1,
+            type=int,
+            help="Text width for command names (0=as needed)")
+
+    width_group.add_argument('--user-width',
+            default=-1,
+            type=int,
+            help="Text width for user names (0=as needed)")
+
+    width_group.add_argument('--mapping-width',
+            default=-1,
+            type=int,
+            help="Text width for mapping names (0=as needed)")
 
     argparser.add_argument('-S', '--source',
             default=None,
             type=str,
             help="/proc data source")
-
-
-    argparser.add_argument('--cmd-width',
-            default=-1,
-            type=int,
-            help="Text width for commands (0=as needed)")
-
-    argparser.add_argument('--name-width',
-            default=-1,
-            type=int,
-            help="Text width for command names (0=as needed)")
-
-    argparser.add_argument('--user-width',
-            default=-1,
-            type=int,
-            help="Text width for user names (0=as needed)")
-
-    argparser.add_argument('--mapping-width',
-            default=-1,
-            type=int,
-            help="Text width for mapping names (0=as needed)")
 
     return argparser.parse_args()
 
