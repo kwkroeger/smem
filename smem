@@ -717,12 +717,12 @@ def parse_arguments(argv=None):
     filter_group.add_argument('-M', '--mapfilter',
             default=None,
             type=str,
-            help="Process filter regex")
+            help="Process map regex")
 
     filter_group.add_argument('-U', '--userfilter',
             default=None,
             type=str,
-            help="Process filter regex")
+            help="Process users regex")
 
     graph_group = argparser.add_argument_group('Graph')
     graph_group.add_argument('--pie',
