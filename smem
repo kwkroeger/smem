@@ -708,43 +708,59 @@ def parse_arguments(argv=None):
             type=str,
             help="Path to kernel image")
 
-
-    argparser.add_argument('-S', '--source',
+    filter_group = argparser.add_argument_group('Filter')
+    filter_group.add_argument('-P', '--processfilter',
             default=None,
             type=str,
-            help="/proc data source")
+            help="Process filter regex")
 
-    filter_group = argparser.add_argument_group('Filter')
-    filter_args = [
-        ('-P', '--processfilter', 'Process filter regex'),
-        ('-M', '--mapfilter', 'Map filter regex'),
-        ('-U', '--userfilter', 'User filter regex')
-    ]
-    for short_arg, long_arg, msg in filter_args:
-        filter_group.add_argument(short_arg, long_arg, default=None, type=str, help=msg)
+    filter_group.add_argument('-M', '--mapfilter',
+            default=None,
+            type=str,
+            help="Process filter regex")
+
+    filter_group.add_argument('-U', '--userfilter',
+            default=None,
+            type=str,
+            help="Process filter regex")
 
     graph_group = argparser.add_argument_group('Graph')
-    graph_args = [
-        ('--pie', "show pie graph"),
-        ('--bar', "show bar graph")
-    ]
-    for arg, msg in graph_args:
-        graph_group.add_argument(arg, default=-1, type=int, help=msg)
+    graph_group.add_argument('--pie',
+            default=None,
+            type=str,
+            help="Show pie graph")
+
+    graph_group.add_argument('--bar',
+            default=None,
+            type=str,
+            help="Show bar graph")
 
     show_group = argparser.add_argument_group('Show')
-    show_args = [
-        ('-m', '--mappings','Show mappings'),
-        ('-u', '--users', 'Show users'),
-        ('-w', '--system', 'Show whole system'),
-        ('-p', '--percent', 'Show perentage'),
-        ('-k', '--abbreviate', 'Show unit suffixes'),
-        ('-t', '--totals', 'Show totals')
-    ]
-    for short_arg, long_arg, msg in show_args:
-        show_group.add_argument(short_arg, long_arg, action='store_true', help=msg)
+    show_group.add_argument('-m', '--mappings',
+            action='store_true',
+            help="Show mappings")
+
+    show_group.add_argument('-u', '--users',
+            action='store_true',
+            help="Show users")
+
+    show_group.add_argument('-w', '--system',
+            action='store_true',
+            help="Show whole system")
+
+    show_group.add_argument('-p', '--percent',
+            action='store_true',
+            help="Show percentage")
+
+    show_group.add_argument('-k', '--abbreviate',
+            action='store_true',
+            help="Show unit suffixes")
+
+    show_group.add_argument('-t', '--totals',
+            action='store_true',
+            help="Show totals")
 
     sort_group = argparser.add_argument_group('Sort')
-
     sort_group.add_argument('-n', '--numeric',
             action='store_true',
             help="Numeric sort")
@@ -759,14 +775,30 @@ def parse_arguments(argv=None):
             help="Reverse sort")
 
     width_group = argparser.add_argument_group('Width')
-    width_args = [
-        ('--cmd-width', 'Text width for commands (0=as needed)'),
-        ('--name-width', 'Text width for command names (0=as needed)'),
-        ('--user-width', 'Text width for user names (0=as needed)'),
-        ('--mapping-width', 'Text width for mapping names (0=as needed)')
-    ]
-    for arg, msg in width_args:
-        width_group.add_argument(arg, default=-1, type=int, help=msg)
+    width_group.add_argument('--cmd-width',
+            default=-1,
+            type=int,
+            help="Text width for commands (0=as needed)")
+
+    width_group.add_argument('--name-width',
+            default=-1,
+            type=int,
+            help="Text width for command names (0=as needed)")
+
+    width_group.add_argument('--user-width',
+            default=-1,
+            type=int,
+            help="Text width for user names (0=as needed)")
+
+    width_group.add_argument('--mapping-width',
+            default=-1,
+            type=int,
+            help="Text width for mapping names (0=as needed)")
+
+    argparser.add_argument('-S', '--source',
+            default=None,
+            type=str,
+            help="/proc data source")
 
     return argparser.parse_args()
 
