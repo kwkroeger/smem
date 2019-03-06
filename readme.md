@@ -15,12 +15,9 @@ smem has many features:
  * configurable output units and percentages
  * configurable headers and totals
  * reading live data from /proc
- * reading data snapshots from directory mirrors or compressed tarballs
  * lightweight capture tool for embedded systems
- * built-in chart generation
 
 smem has a few requirements:  
   
  * a reasonably modern kernel (> 2.6.27 or so)
  * a reasonably recent version of Python (2.4 or so)
- * the matplotlib library for chart generation (optional, auto-detected)
