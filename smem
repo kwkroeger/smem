@@ -82,34 +82,6 @@ class procdata(object):
                 self._gcache[gid] = str(gid)
         return self._gcache[gid]
 
-class tardata(procdata):
-    def __init__(self, source):
-        procdata.__init__(self, source)
-        self.tar = tarfile.open(source)
-    def _list(self):
-        for ti in self.tar:
-            if ti.name.endswith('/smaps'):
-                d,f = ti.name.split('/')
-                yield d
-    def _read(self, f):
-        return self.tar.extractfile(f).read()
-    def _readlines(self, f):
-        return self.tar.extractfile(f).readlines()
-    def piduser(self, p):
-        t = self.tar.getmember("%d" % p)
-        if t.uname:
-            self._ucache[t.uid] = t.uname
-        return t.uid
-    def pidgroup(self, p):
-        t = self.tar.getmember("%d" % p)
-        if t.gname:
-            self._gcache[t.gid] = t.gname
-        return t.gid
-    def username(self, u):
-        return self._ucache.get(u, str(u))
-    def groupname(self, g):
-        return self._gcache.get(g, str(g))
-
 _totalmem = 0
 def totalmem():
     global _totalmem
@@ -525,11 +497,6 @@ def showtable(rows, fields, columns, sort):
             showfields(fields, sort)
             sys.exit(-1)
 
-    if options.pie:
-        columns.append(options.pie)
-    if options.bar:
-        columns.append(options.bar)
-
     mt = totalmem()
     st = memory()['swaptotal']
 
@@ -565,13 +532,6 @@ def showtable(rows, fields, columns, sort):
 
     l.sort(reverse=bool(options.reverse))
 
-    if options.pie:
-        showpie(l, sort)
-        return
-    elif options.bar:
-        showbar(l, columns, sort)
-        return
-
     if not options.no_header:
         print(header)
 
@@ -591,84 +551,6 @@ def showtable(rows, fields, columns, sort):
         print("-" * len(header))
         print(format % tuple([f(v) for f,v in zip(formatter, t)]))
 
-def showpie(l, sort):
-    try:
-        import pylab
-    except ImportError:
-        sys.stderr.write("pie chart requires matplotlib\n")
-        sys.exit(-1)
-
-    if (l[0][0] < l[-1][0]):
-        l.reverse()
-
-    labels = [r[1][-1] for r in l]
-    values = [r[0] for r in l] # sort field
-
-    tm = totalmem()
-    s = sum(values)
-    unused = tm - s
-    t = 0
-    while values and (t + values[-1] < (tm * .02) or
-                      values[-1] < (tm * .005)):
-        t += values.pop()
-        labels.pop()
-
-    if t:
-        values.append(t)
-        labels.append('other')
-
-    explode = [0] * len(values)
-    if unused > 0:
-        values.insert(0, unused)
-        labels.insert(0, 'unused')
-        explode.insert(0, .05)
-
-    pylab.figure(1, figsize=(6,6))
-    ax = pylab.axes([0.1, 0.1, 0.8, 0.8])
-    pylab.pie(values, explode = explode, labels=labels,
-              autopct="%.2f%%", shadow=True)
-    pylab.title('%s by %s' % (options.pie, sort))
-    pylab.show()
-
-def showbar(l, columns, sort):
-    try:
-        import pylab, numpy
-    except ImportError:
-        sys.stderr.write("bar chart requires matplotlib\n")
-        sys.exit(-1)
-
-    if (l[0][0] < l[-1][0]):
-        l.reverse()
-
-    rc = []
-    key = []
-    for n in range(len(columns) - 1):
-        try:
-            if columns[n] in 'pid user group'.split():
-                continue
-            float(l[0][1][n])
-            rc.append(n)
-            key.append(columns[n])
-        except:
-            pass
-
-    width = 1.0 / (len(rc) + 1)
-    offset = width / 2
-
-    def gc(n):
-        return 'bgrcmyw'[n % 7]
-
-    pl = []
-    ind = numpy.arange(len(l))
-    for n in range(len(rc)):
-        pl.append(pylab.bar(ind + offset + width * n,
-                             [x[1][rc[n]] for x in l], width, color=gc(n)))
-
-    #plt.xticks(ind + .5, )
-    pylab.gca().set_xticks(ind + .5)
-    pylab.gca().set_xticklabels([x[1][-1] for x in l], rotation=45)
-    pylab.legend([p[0] for p in pl], key)
-    pylab.show()
 
 def parse_arguments(argv=None):
 
@@ -723,17 +605,6 @@ def parse_arguments(argv=None):
             default=None,
             type=str,
             help="Process users regex")
-
-    graph_group = argparser.add_argument_group('Graph')
-    graph_group.add_argument('--pie',
-            default=None,
-            type=str,
-            help="Show pie graph")
-
-    graph_group.add_argument('--bar',
-            default=None,
-            type=str,
-            help="Show bar graph")
 
     show_group = argparser.add_argument_group('Show')
     show_group.add_argument('-m', '--mappings',
@@ -813,10 +684,7 @@ def main():
     options = parse_arguments(sys.argv)
     ignore_autosize=set()
 
-    try:
-        src = tardata(options.source)
-    except:
-        src = procdata(options.source)
+    src = procdata(options.source)
 
     try:
         if options.mappings:
