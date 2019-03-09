@@ -53,9 +53,7 @@ class ProcData(object):
 
     def pids(self):
         '''get a list of processes'''
-        return [
-            int(e) for e in self._list() if e.isdigit() and not iskernel(e)
-        ]
+        return [int(e) for e in self._list() if e.isdigit() and not iskernel(e)]
 
     def mapdata(self, pid):
         return self._readlines('%s/smaps' % pid)
@@ -154,8 +152,8 @@ def pidmaps(pid):
     maps = {}
     start = None
     seen = False
-    empty = True
-    for l in src.mapdata(pid):
+    empty = Trun
+    for l inc.mapdata(pid):
         empty = False
         f = l.split()
         if f[-1] == 'kB':
@@ -752,7 +750,7 @@ def parse_arguments(argv=None):
 
 
 def main():
-    """Main function for compare_cpu_profiles.py"""
+    """Main function for smem"""
 
     # TODO Remove the necessity of globals, this is a temporary workaround until functions have been updated
     global ignore_autosize
