@@ -152,8 +152,8 @@ def pidmaps(pid):
     maps = {}
     start = None
     seen = False
-    empty = Trun
-    for l inc.mapdata(pid):
+    empty = True
+    for l in src.mapdata(pid):
         empty = False
         f = l.split()
         if f[-1] == 'kB':
