@@ -27,7 +27,8 @@ class UIDCache(object):
     def __call__(self, key):
         return self._cache.setdefault(key, self._getpwuid(key))
 
-    def _getpwuid(self, uid):
+    @staticmethod
+    def _getpwuid(uid):
         try:
             return pwd.getpwuid(uid)[0]
         except KeyError:
@@ -43,16 +44,19 @@ class ProcData(object):
     def _iskernel(pid):
         return src.pidcmd(pid) == ""
 
-    def _list(self):
+    @staticmethod
+    def _list():
         return os.listdir("/proc")
 
-    def _readproc(self, f):
+    @staticmethod
+    def _readproc(f):
         return open('/proc/' + f).read()
 
     def _readlines(self, f):
         return self._readproc(f).splitlines(True)
 
-    def _stat(self, f):
+    @staticmethod
+    def _stat(f):
         return os.stat("/proc/" + f)
 
     def pids(self):
@@ -80,12 +84,6 @@ class ProcData(object):
     def piduser(self, pid):
         try:
             return self._stat('%d' % pid).st_uid
-        except:
-            return -1
-
-    def pidgroup(self, pid):
-        try:
-            return self._stat('%d' % pid).st_gid
         except:
             return -1
 
@@ -556,7 +554,7 @@ def autosize(columns, fields, rows):
 
 def showtable(rows, fields, columns, sort):
     header = ""
-    format = ""
+    table_format = ""
     formatter = []
 
     if sort not in fields:
@@ -588,7 +586,7 @@ def showtable(rows, fields, columns, sort):
             formatter.append(lambda x: x)
         if n in colsizes:
             f = re.sub(r"[0-9]+", str(colsizes[n]), f)
-        format += f + " "
+        table_format += f + " "
         header += f % fields[n][0] + " "
 
     l = []
@@ -602,7 +600,7 @@ def showtable(rows, fields, columns, sort):
         print(header)
 
     for k, r in l:
-        print(format % tuple([f(v) for f, v in zip(formatter, r)]))
+        print(table_format % tuple([f(v) for f, v in zip(formatter, r)]))
 
     if options.totals:
         # totals
@@ -615,7 +613,7 @@ def showtable(rows, fields, columns, sort):
                 t.append("")
 
         print("-" * len(header))
-        print(format % tuple([f(v) for f, v in zip(formatter, t)]))
+        print(table_format % tuple([f(v) for f, v in zip(formatter, t)]))
 
 
 def parse_arguments(argv=None):
