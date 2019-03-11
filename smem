@@ -39,21 +39,25 @@ class ProcData(object):
         self._uidcache = UIDCache()
         self._memdata = None
 
+    @staticmethod
+    def _iskernel(pid):
+        return src.pidcmd(pid) == ""
+
     def _list(self):
         return os.listdir("/proc")
 
-    def _read(self, f):
+    def _readproc(self, f):
         return open('/proc/' + f).read()
 
     def _readlines(self, f):
-        return self._read(f).splitlines(True)
+        return self._readproc(f).splitlines(True)
 
     def _stat(self, f):
         return os.stat("/proc/" + f)
 
     def pids(self):
         '''get a list of processes'''
-        return [int(e) for e in self._list() if e.isdigit() and not iskernel(e)]
+        return [int(e) for e in self._list() if e.isdigit() and not self._iskernel(e)]
 
     def mapdata(self, pid):
         return self._readlines('%s/smaps' % pid)
@@ -66,16 +70,9 @@ class ProcData(object):
     def version(self):
         return self._readlines('version')[0]
 
-    def pidname(self, pid):
-        try:
-            l = self._read('%d/stat' % pid)
-            return l[l.find('(') + 1:l.find(')')]
-        except:
-            return '?'
-
     def pidcmd(self, pid):
         try:
-            c = self._read('%s/cmdline' % pid)[:-1]
+            c = self._readproc('%s/cmdline' % pid)[:-1]
             return c.replace('\0', ' ')
         except:
             return '?'
@@ -200,10 +197,6 @@ def sortmaps(totals, key):
     return [pid for pid, key in l]
 
 
-def iskernel(pid):
-    return src.pidcmd(pid) == ""
-
-
 def memory():
     t = {}
     f = re.compile('(\\S+):\\s+(\\d+) kB')
@@ -294,7 +287,7 @@ def pidtotals(pid):
 def processtotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, src.pidname, src.pidcmd)
+        if (filters(options.processfilter, pid, src.pidcmd)
                 or filters(options.userfilter, pid, pidusername)):
             continue
         try:
@@ -319,8 +312,6 @@ def showpids():
         pid=('PID', lambda n: n, '% 5s', lambda x: len(pt), 'process ID'),
         user=('User', showuser, widthstr('user', options.user_width, 8),
               lambda x: len(dict.fromkeys(x)), 'owner of process'),
-        name=('Name', src.pidname, widthstr('name', options.name_width, 24),
-              None, 'name of process'),
         command=('Command', src.pidcmd,
                  widthstr('command', options.cmd_width, 27), None,
                  'process command line'),
@@ -344,7 +335,7 @@ def showpids():
 def maptotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, src.pidname, src.pidcmd)
+        if (filters(options.processfilter, pid, src.pidcmd)
                 or filters(options.userfilter, pid, pidusername)):
             continue
         try:
@@ -416,7 +407,7 @@ def showmaps():
 def usertotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, src.pidname, src.pidcmd)
+        if (filters(options.processfilter, pid, src.pidcmd)
                 or filters(options.userfilter, pid, pidusername)):
             continue
         try:
