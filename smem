@@ -21,24 +21,57 @@ warned = False
 
 
 class UIDCache(object):
+    """Class for a simple ID Cache"""
     def __init__(self):
         self._cache = {}
 
-    def __call__(self, key):
-        return self._cache.setdefault(key, self._getpwuid(key))
+    def __call__(self, uid):
+        """Return if the entry is in cache, else populate the cache"""
+        return self._cache.setdefault(uid, self._getpwuid(uid))
 
     @staticmethod
     def _getpwuid(uid):
+        """Return the password database entry for the UID otherwise store just the UID"""
         try:
             return pwd.getpwuid(uid)[0]
         except KeyError:
             return str(uid)
 
+class Proc(object):
+    """Helper class to handle /proc/ filesystem data"""
 
-class ProcData(object):
+    def __init__(self):
+            pass
+
+    @staticmethod
+    def read(filename):
+        """Return the file as a string"""
+        return open('/proc/' + filename).read()
+
+    def readlines(self, filename):
+        """Return the file as an list of lines"""
+        return self.read(filename).splitlines(True)
+
+
+class MemData(Proc):
+    """Class accessing and storing /proc/meminfo data"""
+    def __init__(self):
+        self._memdata = {}
+
+        regex = re.compile('(?P<name>\\S+):\\s+(?P<amount>\\d+) kB')
+        for line in self.readlines('meminfo'):
+            match = regex.match(line)
+            if match:
+                self._memdata[match.group('name').lower()] = int(match.group('amount'))
+
+    def __call__(self, entry):
+        """Return the entry when the object is called"""
+        return self._memdata[entry]
+
+
+class ProcessData(Proc):
     def __init__(self):
         self._uidcache = UIDCache()
-        self._memdata = None
 
     @staticmethod
     def _iskernel(pid):
@@ -49,13 +82,6 @@ class ProcData(object):
         return os.listdir("/proc")
 
     @staticmethod
-    def _readproc(f):
-        return open('/proc/' + f).read()
-
-    def _readlines(self, f):
-        return self._readproc(f).splitlines(True)
-
-    @staticmethod
     def _stat(f):
         return os.stat("/proc/" + f)
 
@@ -64,19 +90,14 @@ class ProcData(object):
         return [int(e) for e in self._list() if e.isdigit() and not self._iskernel(e)]
 
     def mapdata(self, pid):
-        return self._readlines('%s/smaps' % pid)
-
-    def memdata(self):
-        if self._memdata is None:
-            self._memdata = self._readlines('meminfo')
-        return self._memdata
+        return self.readlines('%s/smaps' % pid)
 
     def version(self):
-        return self._readlines('version')[0]
+        return self.readlines('version')[0]
 
     def pidcmd(self, pid):
         try:
-            c = self._readproc('%s/cmdline' % pid)[:-1]
+            c = self.read('%s/cmdline' % pid)[:-1]
             return c.replace('\0', ' ')
         except:
             return '?'
@@ -100,7 +121,8 @@ def totalmem():
         if options.realmem:
             _totalmem = fromunits(options.realmem) / 1024
         else:
-            _totalmem = memory()['memtotal']
+            memdata = MemData()
+            _totalmem = memdata('memtotal')
     return _totalmem
 
 
@@ -193,17 +215,6 @@ def sortmaps(totals, key):
         l.append((totals[pid][key], pid))
     l.sort()
     return [pid for pid, key in l]
-
-
-def memory():
-    t = {}
-    f = re.compile('(\\S+):\\s+(\\d+) kB')
-    for l in src.memdata():
-        m = f.match(l)
-        if m:
-            t[m.group(1).lower()] = int(m.group(2))
-    return t
-
 
 def units(x):
     s = ''
@@ -472,26 +483,26 @@ def showusers():
 def showsystem():
     t = totalmem()
     ki = kernelsize()
-    m = memory()
+    m = MemData()
 
-    mt = m['memtotal']
-    f = m['memfree']
+    mt = m('memtotal')
+    f = m('memfree')
 
     # total amount used by hardware
     fh = max(t - mt - ki, 0)
 
     # total amount mapped into userspace (ie mapped an unmapped pages)
-    u = m['anonpages'] + m['mapped']
+    u = m('anonpages') + m('mapped')
 
     # total amount allocated by kernel not for userspace
     kd = mt - f - u
 
     # total amount in kernel caches
-    kdc = m['buffers'] + m['sreclaimable'] + (m['cached'] - m['mapped'])
+    kdc = m('buffers') + m('sreclaimable') + (m('cached') - m('mapped'))
 
     l = [("firmware/hardware", fh, 0), ("kernel image", ki, 0),
          ("kernel dynamic memory", kd, kdc),
-         ("userspace memory", u, m['mapped']), ("free memory", f, f)]
+         ("userspace memory", u, m('mapped')), ("free memory", f, f)]
 
     fields = dict(
         order=('Order', lambda n: n, '% 1s', lambda x: '',
@@ -562,7 +573,8 @@ def showtable(rows, fields, columns, sort):
         sys.exit(-1)
 
     mt = totalmem()
-    st = memory()['swaptotal']
+    memdata = MemData()
+    st = memdata('swaptotal')
 
     missing = set(columns) - set(fields)
     if len(missing) > 0:
@@ -749,7 +761,7 @@ def main():
     options = parse_arguments(sys.argv)
     ignore_autosize = set()
 
-    src = ProcData()
+    src = ProcessData()
 
     try:
         if options.mappings:
