@@ -17,8 +17,6 @@ import pwd
 import re
 import sys
 
-warned = False
-
 
 class UIDCache(object):
     """Class for a simple ID Cache"""
@@ -41,7 +39,11 @@ class Proc(object):
     """Helper class to handle /proc/ filesystem data"""
 
     def __init__(self):
-            pass
+        pass
+
+    @staticmethod
+    def listdir():
+        return os.listdir("/proc")
 
     @staticmethod
     def read(filename):
@@ -51,6 +53,10 @@ class Proc(object):
     def readlines(self, filename):
         """Return the file as an list of lines"""
         return self.read(filename).splitlines(True)
+
+    def version(self):
+        """Return Linux version data"""
+        return self.readlines('version')[0]
 
 
 class MemData(Proc):
@@ -70,32 +76,29 @@ class MemData(Proc):
 
 
 class ProcessData(Proc):
+    """Helper class to handle /proc/<pid> filesystem data"""
     def __init__(self):
         self._uidcache = UIDCache()
 
-    @staticmethod
-    def _iskernel(pid):
-        return src.pidcmd(pid) == ""
+    def _iskernel(self, pid):
+        """Check if it's a kernel pid"""
+        return self.pidcmd(pid) == ""
 
     @staticmethod
-    def _list():
-        return os.listdir("/proc")
-
-    @staticmethod
-    def _stat(f):
-        return os.stat("/proc/" + f)
+    def _stat(pid):
+        """Stat result for the pid"""
+        return os.stat("/proc/" + pid)
 
     def pids(self):
-        '''get a list of processes'''
-        return [int(e) for e in self._list() if e.isdigit() and not self._iskernel(e)]
+        """Get a list of PID's"""
+        return [int(e) for e in self.listdir() if e.isdigit() and not self._iskernel(e)]
 
     def mapdata(self, pid):
+        """Return PID smaps data"""
         return self.readlines('%s/smaps' % pid)
 
-    def version(self):
-        return self.readlines('version')[0]
-
     def pidcmd(self, pid):
+        """Return PID cmdline data"""
         try:
             c = self.read('%s/cmdline' % pid)[:-1]
             return c.replace('\0', ' ')
@@ -103,17 +106,17 @@ class ProcessData(Proc):
             return '?'
 
     def piduser(self, pid):
+        """Return PID user data"""
         try:
             return self._stat('%d' % pid).st_uid
         except:
             return -1
 
     def username(self, uid):
+        """Return username from UID cache"""
         return '?' if uid == -1 else self._uidcache(uid)
 
-
 _totalmem = 0
-
 
 def totalmem():
     global _totalmem
@@ -165,7 +168,6 @@ def kernelsize():
 
 
 def pidmaps(pid):
-    global warned
     maps = {}
     start = None
     seen = False
@@ -192,9 +194,7 @@ def pidmaps(pid):
                 name=name)
 
     if not empty and not seen and not warned:
-        sys.stderr.write(
-            'warning: kernel does not appear to support PSS measurement\n')
-        warned = True
+        print("Warning: Kernel does not appear to support PSS measurement")
         if not options.sort:
             options.sort = 'rss'
 
