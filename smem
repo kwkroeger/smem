@@ -351,7 +351,11 @@ def widthstr(field, width, default):
 
 
 def showpids():
-    p = proc.pids()
+    p = []
+    if options.pid:
+       p.append (options.pid)
+    else:
+       p = proc.pids()
     pt = processtotals(p)
 
     def showuser(p):
@@ -416,6 +420,7 @@ def showmaps():
 
 
 def showusers():
+    
     p = proc.pids()
     pt = usertotals(p)
 
@@ -735,7 +740,12 @@ def parse_arguments(argv=None):
             default=None,
             type=str,
             help="/proc data source")
-
+            
+    argparser.add_argument( '--pid',
+            default=None,
+            type=int,
+            help="Show just process memory based on one pid")
+            
     return argparser.parse_args()
 
 
