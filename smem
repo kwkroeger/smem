@@ -90,7 +90,8 @@ class ProcessData(Proc):
 
     def pids(self):
         """Get a list of PID's"""
-        return [int(e) for e in self.listdir() if e.isdigit() and not self._iskernel(e)]
+        return [int(e) for e in self.listdir() if e.isdigit() and not self._iskernel(e)\
+                and ((options.pid and options.pid == int(e)) or not options.pid)]
 
     def mapdata(self, pid):
         """Return PID smaps data"""
@@ -162,8 +163,7 @@ def pidmaps(pid):
     if options.mapfilter:
         f = {}
         for m in maps:
-            if not list(
-                    filters(options.mapfilter, m, lambda x: maps[x]['name'])):
+            if not filters(options.mapfilter, m, lambda x: maps[x]['name']):
                 f[m] = maps[m]
         return f
     return maps
@@ -351,11 +351,7 @@ def widthstr(field, width, default):
 
 
 def showpids():
-    p = []
-    if options.pid:
-       p.append (options.pid)
-    else:
-       p = proc.pids()
+    p = proc.pids()
     pt = processtotals(p)
 
     def showuser(p):
@@ -409,7 +405,7 @@ def showmaps():
              'virtual set size (total virtual address space mapped)'),
         avgpss=('AVGPSS', lambda n: int(1.0 * pt[n]['pss'] / pt[n]['pids']),
                 '% 8a', sum, 'average PSS per PID'),
-        avguss=('AVGUSS', lambda n: int(1.0 * pt[n]['uss'] / pt[n]['pids']),
+        avguss=('AVGUSS', lambda n: int(1.0 * (pt[n]['private_clean'] + pt[n]['private_dirty']) / pt[n]['pids']),
                 '% 8a', sum, 'average USS per PID'),
         avgrss=('AVGRSS', lambda n: int(1.0 * pt[n]['rss'] / pt[n]['pids']),
                 '% 8a', sum, 'average RSS per PID'),
@@ -454,23 +450,19 @@ def kernelsize():
     kernelsize = 0
     if not kernelsize and options.kernel:
         try:
-            d = os.popen("size %s" % options.kernel).readlines()[1]
-            kernelsize = int(d.split()[3]) / 1024
-        except:
-            try:
+            d = os.popen("size %s" % options.kernel).readlines()[1].split()
+            if int(d[1]) == 0: # data part missing, seems like packed file
                 # try some heuristic to find gzipped part in kernel image
-                packedkernel = open(options.kernel).read()
-                pos = packedkernel.find('\x1F\x8B')
+                packedkernel = open(options.kernel, "rb").read()
+                pos = packedkernel.find(b'\x1F\x8B')
                 if pos >= 0 and pos < 25000:
-                    sys.stderr.write(
-                        "Maybe uncompressed kernel can be extracted by the command:\n"
-                        "  dd if=%s bs=1 skip=%d | gzip -d >%s.unpacked\n\n" %
-                        (options.kernel, pos, options.kernel))
-            except:
-                pass
-            sys.stderr.write(
-                "Parameter '%s' should be an original uncompressed compiled kernel file.\n\n"
-                % options.kernel)
+                    sys.stderr.write("Parameter '%s' should be an original uncompressed compiled kernel file.\n" % options.kernel)
+                    sys.stderr.write("Maybe uncompressed kernel can be extracted by the command:\n"
+                                "  dd if=%s bs=1 skip=%d | gzip -d >%s.unpacked\n\n" % (options.kernel, pos, options.kernel))
+            else:
+                kernelsize = int(int(d[3]) / 1024 +0.5)
+        except:
+            pass
     return kernelsize
 
 
@@ -652,7 +644,8 @@ def parse_arguments(argv=None):
             help="Size columns to fit terminal size")
 
     argparser.add_argument('-R', '--realmem',
-            action='store_true',
+            default=None,
+            type=str,
             help="Amount of physical RAM")
 
     argparser.add_argument('-K', '--kernel',
