@@ -20,6 +20,7 @@ import sys
 
 class UIDCache(object):
     """Class for a simple ID Cache"""
+
     def __init__(self):
         self._cache = {}
 
@@ -35,8 +36,10 @@ class UIDCache(object):
         except KeyError:
             return str(uid)
 
+
 class Proc(object):
     """Helper class to handle /proc/ filesystem data"""
+
     def __init__(self):
         pass
 
@@ -47,7 +50,7 @@ class Proc(object):
     @staticmethod
     def read(filename):
         """Return the file as a string"""
-        return open('/proc/' + filename).read()
+        return open("/proc/" + filename).read()
 
     def readlines(self, filename):
         """Return the file as an list of lines"""
@@ -55,19 +58,20 @@ class Proc(object):
 
     def version(self):
         """Return Linux version data"""
-        return self.readlines('version')[0]
+        return self.readlines("version")[0]
 
 
 class MemData(Proc):
     """Class accessing and storing /proc/meminfo data"""
+
     def __init__(self):
         self._memdata = {}
 
-        regex = re.compile('(?P<name>\\S+):\\s+(?P<amount>\\d+) kB')
-        for line in self.readlines('meminfo'):
+        regex = re.compile("(?P<name>\\S+):\\s+(?P<amount>\\d+) kB")
+        for line in self.readlines("meminfo"):
             match = regex.match(line)
             if match:
-                self._memdata[match.group('name').lower()] = int(match.group('amount'))
+                self._memdata[match.group("name").lower()] = int(match.group("amount"))
 
     def __call__(self, entry):
         """Return the entry when the object is called"""
@@ -76,6 +80,7 @@ class MemData(Proc):
 
 class ProcessData(Proc):
     """Helper class to handle /proc/<pid> filesystem data"""
+
     def __init__(self):
         self._uidcache = UIDCache()
 
@@ -90,31 +95,36 @@ class ProcessData(Proc):
 
     def pids(self):
         """Get a list of PID's"""
-        return [int(e) for e in self.listdir() if e.isdigit() and not self._iskernel(e)\
-                and ((options.pid and options.pid == int(e)) or not options.pid)]
+        return [
+            int(e)
+            for e in self.listdir()
+            if e.isdigit()
+            and not self._iskernel(e)
+            and ((options.pid and options.pid == int(e)) or not options.pid)
+        ]
 
     def mapdata(self, pid):
         """Return PID smaps data"""
-        return self.readlines('%s/smaps' % pid)
+        return self.readlines("%s/smaps" % pid)
 
     def pidcmd(self, pid):
         """Return PID cmdline data"""
         try:
-            c = self.read('%s/cmdline' % pid)[:-1]
-            return c.replace('\0', ' ')
+            c = self.read("%s/cmdline" % pid)[:-1]
+            return c.replace("\0", " ")
         except:
-            return '?'
+            return "?"
 
     def piduser(self, pid):
         """Return PID user data"""
         try:
-            return self._stat('%d' % pid).st_uid
+            return self._stat("%d" % pid).st_uid
         except:
             return -1
 
     def username(self, uid):
         """Return username from UID cache"""
-        return '?' if uid == -1 else self._uidcache(uid)
+        return "?" if uid == -1 else self._uidcache(uid)
 
     def pidusername(self, pid):
         """Return PID username"""
@@ -126,7 +136,7 @@ def totalmem():
         return fromunits(options.realmem) / 1024
     else:
         memdata = MemData()
-        return memdata('memtotal')
+        return memdata("memtotal")
 
 
 def pidmaps(pid):
@@ -137,12 +147,12 @@ def pidmaps(pid):
     for l in proc.mapdata(pid):
         empty = False
         f = l.split()
-        if f[-1] == 'kB':
-            if f[0].startswith('Pss'):
+        if f[-1] == "kB":
+            if f[0].startswith("Pss"):
                 seen = True
             maps[start][f[0][:-1].lower()] = int(f[1])
-        elif '-' in f[0] and ':' not in f[0]:  # looks like a mapping range
-            start, end = f[0].split('-')
+        elif "-" in f[0] and ":" not in f[0]:  # looks like a mapping range
+            start, end = f[0].split("-")
             start = int(start, 16)
             name = "<anonymous>"
             if len(f) > 5:
@@ -153,32 +163,35 @@ def pidmaps(pid):
                 offset=int(f[2], 16),
                 device=f[3],
                 inode=f[4],
-                name=name)
+                name=name,
+            )
 
     if not empty and not seen and not warned:
         print("Warning: Kernel does not appear to support PSS measurement")
         if not options.sort:
-            options.sort = 'rss'
+            options.sort = "rss"
 
     if options.mapfilter:
         f = {}
         for m in maps:
-            if not filters(options.mapfilter, m, lambda x: maps[x]['name']):
+            if not filters(options.mapfilter, m, lambda x: maps[x]["name"]):
                 f[m] = maps[m]
         return f
     return maps
 
+
 def maptotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, proc.pidcmd)
-                or filters(options.userfilter, pid, proc.pidusername)):
+        if filters(options.processfilter, pid, proc.pidcmd) or filters(
+            options.userfilter, pid, proc.pidusername
+        ):
             continue
         try:
             maps = pidmaps(pid)
             seen = {}
             for m in list(maps.keys()):
-                name = maps[m]['name']
+                name = maps[m]["name"]
                 if name not in totals:
                     t = dict(
                         size=0,
@@ -191,15 +204,16 @@ def maptotals(pids):
                         private_dirty=0,
                         referenced=0,
                         swap=0,
-                        pids=0)
+                        pids=0,
+                    )
                 else:
                     t = totals[name]
 
                 for k in t:
                     t[k] += maps[m].get(k, 0)
-                t['count'] += 1
+                t["count"] += 1
                 if name not in seen:
-                    t['pids'] += 1
+                    t["pids"] += 1
                     seen[name] = 1
                 totals[name] = t
         except EnvironmentError:
@@ -218,13 +232,14 @@ def pidtotals(pid):
         private_clean=0,
         private_dirty=0,
         referenced=0,
-        swap=0)
+        swap=0,
+    )
     for m in list(maps.keys()):
         for k in t:
             t[k] += maps[m].get(k, 0)
 
-    t['uss'] = t['private_clean'] + t['private_dirty']
-    t['maps'] = len(maps)
+    t["uss"] = t["private_clean"] + t["private_dirty"]
+    t["maps"] = len(maps)
 
     return t
 
@@ -232,8 +247,9 @@ def pidtotals(pid):
 def usertotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, proc.pidcmd)
-                or filters(options.userfilter, pid, proc.pidusername)):
+        if filters(options.processfilter, pid, proc.pidcmd) or filters(
+            options.userfilter, pid, proc.pidusername
+        ):
             continue
         try:
             maps = pidmaps(pid)
@@ -253,7 +269,8 @@ def usertotals(pids):
                 count=0,
                 private_dirty=0,
                 referenced=0,
-                swap=0)
+                swap=0,
+            )
         else:
             t = totals[user]
 
@@ -261,7 +278,7 @@ def usertotals(pids):
             for k in t:
                 t[k] += maps[m].get(k, 0)
 
-        t['count'] += 1
+        t["count"] += 1
         totals[user] = t
     return totals
 
@@ -273,11 +290,12 @@ def sortmaps(totals, key):
     l.sort()
     return [pid for pid, key in l]
 
+
 def units(x):
-    s = ''
+    s = ""
     if x == 0:
-        return '0'
-    for s in ('', 'K', 'M', 'G', 'T'):
+        return "0"
+    for s in ("", "K", "M", "G", "T"):
         if x < 1024:
             break
         x /= 1024.0
@@ -295,12 +313,12 @@ def fromunits(x):
         G=2**30,
         GB=2**30,
         T=2**40,
-        TB=2**40)
+        TB=2**40,
+    )
     for k, v in list(s.items()):
         if x.endswith(k):
-            return int(float(x[:-len(k)]) * v)
-    sys.stderr.write(
-        "Memory size should be written with units, for example 1024M\n")
+            return int(float(x[: -len(k)]) * v)
+    sys.stderr.write("Memory size should be written with units, for example 1024M\n")
     sys.exit(-1)
 
 
@@ -309,7 +327,7 @@ def showamount(a, total):
         return units(a * 1024)
     elif options.percent:
         if total == 0:
-            return 'N/A'
+            return "N/A"
         return "%.2f%%" % (100.0 * a / total)
     return a
 
@@ -327,12 +345,13 @@ def filters(opt, arg, *sources):
 def processtotals(pids):
     totals = {}
     for pid in pids:
-        if (filters(options.processfilter, pid, proc.pidcmd)
-                or filters(options.userfilter, pid, proc.pidusername)):
+        if filters(options.processfilter, pid, proc.pidcmd) or filters(
+            options.userfilter, pid, proc.pidusername
+        ):
             continue
         try:
             p = pidtotals(pid)
-            if p['maps'] != 0:
+            if p["maps"] != 0:
                 totals[pid] = p
         except:
             continue
@@ -341,13 +360,13 @@ def processtotals(pids):
 
 def widthstr(field, width, default):
     if width == 0:
-        return '%s'
+        return "%s"
     if width < 0:
         size = default
     else:
         size = width
         ignore_autosize.add(field)
-    return '%-{size}.{size}s'.format(size=size)
+    return "%-{size}.{size}s".format(size=size)
 
 
 def showpids():
@@ -360,63 +379,149 @@ def showpids():
         return proc.pidusername(p)
 
     fields = dict(
-        pid=('PID', lambda n: n, '% 5s', lambda x: len(pt), 'process ID'),
-        user=('User', showuser, widthstr('user', options.user_width, 8),
-              lambda x: len(dict.fromkeys(x)), 'owner of process'),
-        command=('Command', proc.pidcmd,
-                 widthstr('command', options.cmd_width, 27), None,
-                 'process command line'),
-        maps=('Maps', lambda n: pt[n]['maps'], '% 5s', sum,
-              'total number of mappings'),
-        swap=('Swap', lambda n: pt[n]['swap'], '% 8a', sum,
-              'amount of swap space consumed (ignoring sharing)'),
-        uss=('USS', lambda n: pt[n]['uss'], '% 8a', sum, 'unique set size'),
-        rss=('RSS', lambda n: pt[n]['rss'], '% 8a', sum,
-             'resident set size (ignoring sharing)'),
-        pss=('PSS', lambda n: pt[n]['pss'], '% 8a', sum,
-             'proportional set size (including sharing)'),
-        vss=('VSS', lambda n: pt[n]['size'], '% 8a', sum,
-             'virtual set size (total virtual memory mapped)'),
+        pid=("PID", lambda n: n, "% 5s", lambda x: len(pt), "process ID"),
+        user=(
+            "User",
+            showuser,
+            widthstr("user", options.user_width, 8),
+            lambda x: len(dict.fromkeys(x)),
+            "owner of process",
+        ),
+        command=(
+            "Command",
+            proc.pidcmd,
+            widthstr("command", options.cmd_width, 27),
+            None,
+            "process command line",
+        ),
+        maps=("Maps", lambda n: pt[n]["maps"], "% 5s", sum, "total number of mappings"),
+        swap=(
+            "Swap",
+            lambda n: pt[n]["swap"],
+            "% 8a",
+            sum,
+            "amount of swap space consumed (ignoring sharing)",
+        ),
+        uss=("USS", lambda n: pt[n]["uss"], "% 8a", sum, "unique set size"),
+        rss=(
+            "RSS",
+            lambda n: pt[n]["rss"],
+            "% 8a",
+            sum,
+            "resident set size (ignoring sharing)",
+        ),
+        pss=(
+            "PSS",
+            lambda n: pt[n]["pss"],
+            "% 8a",
+            sum,
+            "proportional set size (including sharing)",
+        ),
+        vss=(
+            "VSS",
+            lambda n: pt[n]["size"],
+            "% 8a",
+            sum,
+            "virtual set size (total virtual memory mapped)",
+        ),
     )
-    columns = options.columns or 'pid user command swap uss pss rss'
+    columns = options.columns or "pid user command swap uss pss rss"
 
-    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or "pss")
+
 
 def showmaps():
     p = proc.pids()
     pt = maptotals(p)
 
     fields = dict(
-        map=('Map', lambda n: n, widthstr('map', options.mapping_width, 40),
-             len, 'mapping name'),
-        count=('Count', lambda n: pt[n]['count'], '% 5s', sum,
-               'number of mappings found'),
-        pids=('PIDs', lambda n: pt[n]['pids'], '% 5s', sum,
-              'number of PIDs using mapping'),
-        swap=('Swap', lambda n: pt[n]['swap'], '% 8a', sum,
-              'amount of swap space consumed (ignoring sharing)'),
-        uss=('USS', lambda n: pt[n]['private_clean'] + pt[n]['private_dirty'],
-             '% 8a', sum, 'unique set size'),
-        rss=('RSS', lambda n: pt[n]['rss'], '% 8a', sum,
-             'resident set size (ignoring sharing)'),
-        pss=('PSS', lambda n: pt[n]['pss'], '% 8a', sum,
-             'proportional set size (including sharing)'),
-        vss=('VSS', lambda n: pt[n]['size'], '% 8a', sum,
-             'virtual set size (total virtual address space mapped)'),
-        avgpss=('AVGPSS', lambda n: int(1.0 * pt[n]['pss'] / pt[n]['pids']),
-                '% 8a', sum, 'average PSS per PID'),
-        avguss=('AVGUSS', lambda n: int(1.0 * (pt[n]['private_clean'] + pt[n]['private_dirty']) / pt[n]['pids']),
-                '% 8a', sum, 'average USS per PID'),
-        avgrss=('AVGRSS', lambda n: int(1.0 * pt[n]['rss'] / pt[n]['pids']),
-                '% 8a', sum, 'average RSS per PID'),
+        map=(
+            "Map",
+            lambda n: n,
+            widthstr("map", options.mapping_width, 40),
+            len,
+            "mapping name",
+        ),
+        count=(
+            "Count",
+            lambda n: pt[n]["count"],
+            "% 5s",
+            sum,
+            "number of mappings found",
+        ),
+        pids=(
+            "PIDs",
+            lambda n: pt[n]["pids"],
+            "% 5s",
+            sum,
+            "number of PIDs using mapping",
+        ),
+        swap=(
+            "Swap",
+            lambda n: pt[n]["swap"],
+            "% 8a",
+            sum,
+            "amount of swap space consumed (ignoring sharing)",
+        ),
+        uss=(
+            "USS",
+            lambda n: pt[n]["private_clean"] + pt[n]["private_dirty"],
+            "% 8a",
+            sum,
+            "unique set size",
+        ),
+        rss=(
+            "RSS",
+            lambda n: pt[n]["rss"],
+            "% 8a",
+            sum,
+            "resident set size (ignoring sharing)",
+        ),
+        pss=(
+            "PSS",
+            lambda n: pt[n]["pss"],
+            "% 8a",
+            sum,
+            "proportional set size (including sharing)",
+        ),
+        vss=(
+            "VSS",
+            lambda n: pt[n]["size"],
+            "% 8a",
+            sum,
+            "virtual set size (total virtual address space mapped)",
+        ),
+        avgpss=(
+            "AVGPSS",
+            lambda n: int(1.0 * pt[n]["pss"] / pt[n]["pids"]),
+            "% 8a",
+            sum,
+            "average PSS per PID",
+        ),
+        avguss=(
+            "AVGUSS",
+            lambda n: int(
+                1.0 * (pt[n]["private_clean"] + pt[n]["private_dirty"]) / pt[n]["pids"]
+            ),
+            "% 8a",
+            sum,
+            "average USS per PID",
+        ),
+        avgrss=(
+            "AVGRSS",
+            lambda n: int(1.0 * pt[n]["rss"] / pt[n]["pids"]),
+            "% 8a",
+            sum,
+            "average RSS per PID",
+        ),
     )
-    columns = options.columns or 'map pids avgpss pss'
+    columns = options.columns or "map pids avgpss pss"
 
-    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or "pss")
 
 
 def showusers():
-    
+
     p = proc.pids()
     pt = usertotals(p)
 
@@ -426,24 +531,53 @@ def showusers():
         return proc.username(u)
 
     fields = dict(
-        user=('User', showuser, widthstr('user', options.user_width, 8), None,
-              'user name or ID'),
-        count=('Count', lambda n: pt[n]['count'], '% 5s', sum,
-               'number of processes'),
-        swap=('Swap', lambda n: pt[n]['swap'], '% 8a', sum,
-              'amount of swapspace consumed (ignoring sharing)'),
-        uss=('USS', lambda n: pt[n]['private_clean'] + pt[n]['private_dirty'],
-             '% 8a', sum, 'unique set size'),
-        rss=('RSS', lambda n: pt[n]['rss'], '% 8a', sum,
-             'resident set size (ignoring sharing)'),
-        pss=('PSS', lambda n: pt[n]['pss'], '% 8a', sum,
-             'proportional set size (including sharing)'),
-        vss=('VSS', lambda n: pt[n]['pss'], '% 8a', sum,
-             'virtual set size (total virtual memory mapped)'),
+        user=(
+            "User",
+            showuser,
+            widthstr("user", options.user_width, 8),
+            None,
+            "user name or ID",
+        ),
+        count=("Count", lambda n: pt[n]["count"], "% 5s", sum, "number of processes"),
+        swap=(
+            "Swap",
+            lambda n: pt[n]["swap"],
+            "% 8a",
+            sum,
+            "amount of swapspace consumed (ignoring sharing)",
+        ),
+        uss=(
+            "USS",
+            lambda n: pt[n]["private_clean"] + pt[n]["private_dirty"],
+            "% 8a",
+            sum,
+            "unique set size",
+        ),
+        rss=(
+            "RSS",
+            lambda n: pt[n]["rss"],
+            "% 8a",
+            sum,
+            "resident set size (ignoring sharing)",
+        ),
+        pss=(
+            "PSS",
+            lambda n: pt[n]["pss"],
+            "% 8a",
+            sum,
+            "proportional set size (including sharing)",
+        ),
+        vss=(
+            "VSS",
+            lambda n: pt[n]["pss"],
+            "% 8a",
+            sum,
+            "virtual set size (total virtual memory mapped)",
+        ),
     )
-    columns = options.columns or 'user count swap uss pss rss'
+    columns = options.columns or "user count swap uss pss rss"
 
-    showtable(list(pt.keys()), fields, columns.split(), options.sort or 'pss')
+    showtable(list(pt.keys()), fields, columns.split(), options.sort or "pss")
 
 
 def kernelsize():
@@ -451,16 +585,22 @@ def kernelsize():
     if not kernelsize and options.kernel:
         try:
             d = os.popen("size %s" % options.kernel).readlines()[1].split()
-            if int(d[1]) == 0: # data part missing, seems like packed file
+            if int(d[1]) == 0:  # data part missing, seems like packed file
                 # try some heuristic to find gzipped part in kernel image
                 packedkernel = open(options.kernel, "rb").read()
-                pos = packedkernel.find(b'\x1F\x8B')
+                pos = packedkernel.find(b"\x1F\x8B")
                 if pos >= 0 and pos < 25000:
-                    sys.stderr.write("Parameter '%s' should be an original uncompressed compiled kernel file.\n" % options.kernel)
-                    sys.stderr.write("Maybe uncompressed kernel can be extracted by the command:\n"
-                                "  dd if=%s bs=1 skip=%d | gzip -d >%s.unpacked\n\n" % (options.kernel, pos, options.kernel))
+                    sys.stderr.write(
+                        "Parameter '%s' should be an original uncompressed compiled kernel file.\n"
+                        % options.kernel
+                    )
+                    sys.stderr.write(
+                        "Maybe uncompressed kernel can be extracted by the command:\n"
+                        "  dd if=%s bs=1 skip=%d | gzip -d >%s.unpacked\n\n"
+                        % (options.kernel, pos, options.kernel)
+                    )
             else:
-                kernelsize = int(int(d[3]) / 1024 +0.5)
+                kernelsize = int(int(d[3]) / 1024 + 0.5)
         except:
             pass
     return kernelsize
@@ -471,38 +611,51 @@ def showsystem():
     ki = kernelsize()
     m = MemData()
 
-    mt = m('memtotal')
-    f = m('memfree')
+    mt = m("memtotal")
+    f = m("memfree")
 
     # total amount used by hardware
     fh = max(t - mt - ki, 0)
 
     # total amount mapped into userspace (ie mapped an unmapped pages)
-    u = m('anonpages') + m('mapped')
+    u = m("anonpages") + m("mapped")
 
     # total amount allocated by kernel not for userspace
     kd = mt - f - u
 
     # total amount in kernel caches
-    kdc = m('buffers') + m('sreclaimable') + (m('cached') - m('mapped'))
+    kdc = m("buffers") + m("sreclaimable") + (m("cached") - m("mapped"))
 
-    l = [("firmware/hardware", fh, 0), ("kernel image", ki, 0),
-         ("kernel dynamic memory", kd, kdc),
-         ("userspace memory", u, m('mapped')), ("free memory", f, f)]
+    l = [
+        ("firmware/hardware", fh, 0),
+        ("kernel image", ki, 0),
+        ("kernel dynamic memory", kd, kdc),
+        ("userspace memory", u, m("mapped")),
+        ("free memory", f, f),
+    ]
 
     fields = dict(
-        order=('Order', lambda n: n, '% 1s', lambda x: '',
-               'hierarchical order'),
-        area=('Area', lambda n: l[n][0], '%-24s', lambda x: '', 'memory area'),
-        used=('Used', lambda n: l[n][1], '%10a', sum, 'area in use'),
-        cache=('Cache', lambda n: l[n][2], '%10a', sum,
-               'area used as reclaimable cache'),
-        noncache=('Noncache', lambda n: l[n][1] - l[n][2], '%10a', sum,
-                  'area not reclaimable'))
+        order=("Order", lambda n: n, "% 1s", lambda x: "", "hierarchical order"),
+        area=("Area", lambda n: l[n][0], "%-24s", lambda x: "", "memory area"),
+        used=("Used", lambda n: l[n][1], "%10a", sum, "area in use"),
+        cache=(
+            "Cache",
+            lambda n: l[n][2],
+            "%10a",
+            sum,
+            "area used as reclaimable cache",
+        ),
+        noncache=(
+            "Noncache",
+            lambda n: l[n][1] - l[n][2],
+            "%10a",
+            sum,
+            "area not reclaimable",
+        ),
+    )
 
-    columns = options.columns or 'area used cache noncache'
-    showtable(
-        list(range(len(l))), fields, columns.split(), options.sort or 'order')
+    columns = options.columns or "area used cache noncache"
+    showtable(list(range(len(l))), fields, columns.split(), options.sort or "order")
 
 
 def showfields(fields, f):
@@ -525,7 +678,7 @@ def autosize(columns, fields, rows):
         if not options.no_header:
             sizes.append(len(fields[c][0]))
 
-        if (options.abbreviate or options.percent) and 'a' in fields[c][2]:
+        if (options.abbreviate or options.percent) and "a" in fields[c][2]:
             sizes.append(7)
         else:
             for r in rows:
@@ -538,7 +691,7 @@ def autosize(columns, fields, rows):
         overflowcol = overflowcols.pop()
         totnoflow = sum(colsizes.values()) - colsizes[overflowcol]
         try:
-            ttyrows, ttycolumns = os.popen('stty size', 'r').read().split()
+            ttyrows, ttycolumns = os.popen("stty size", "r").read().split()
             ttyrows, ttycolumns = int(ttyrows), int(ttycolumns)
         except:
             ttyrows, ttycolumns = (24, 80)
@@ -560,7 +713,7 @@ def showtable(rows, fields, columns, sort):
 
     mt = totalmem()
     memdata = MemData()
-    st = memdata('swaptotal')
+    st = memdata("swaptotal")
 
     missing = set(columns) - set(fields)
     if len(missing) > 0:
@@ -574,12 +727,12 @@ def showtable(rows, fields, columns, sort):
 
     for n in columns:
         f = fields[n][2]
-        if 'a' in f:
-            if n == 'swap':
+        if "a" in f:
+            if n == "swap":
                 formatter.append(lambda x: showamount(x, st))
             else:
                 formatter.append(lambda x: showamount(x, mt))
-            f = f.replace('a', 's')
+            f = f.replace("a", "s")
         else:
             formatter.append(lambda x: x)
         if n in colsizes:
@@ -617,128 +770,125 @@ def showtable(rows, fields, columns, sort):
 def parse_arguments(argv=None):
 
     argparser = argparse.ArgumentParser(
-        prog='smem',
-        description='''
+        prog="smem",
+        description="""
                     smem is a tool that can give numerous reports on memory usage on Linux systems.
                     Unlike existing tools, smem can report proportional set size (PSS), which is a
                     more meaningful representation of the amount of memory used by libraries and
                     applications in a virtual memory system.
-                    ''',
-        epilog='''
+                    """,
+        epilog="""
                For more information please visit:
                https://github.com/kwkroeger/smem
-               '''
+               """,
     )
 
-    argparser.add_argument('-H', '--no-header',
-            action='store_true',
-            help="Disable header line")
+    argparser.add_argument(
+        "-H", "--no-header", action="store_true", help="Disable header line"
+    )
 
-    argparser.add_argument('-c', '--columns',
-            default=None,
-            type=str,
-            help="Columns to show")
+    argparser.add_argument(
+        "-c", "--columns", default=None, type=str, help="Columns to show"
+    )
 
-    argparser.add_argument('-a', '--autosize',
-            action='store_true',
-            help="Size columns to fit terminal size")
+    argparser.add_argument(
+        "-a",
+        "--autosize",
+        action="store_true",
+        help="Size columns to fit terminal size",
+    )
 
-    argparser.add_argument('-R', '--realmem',
-            default=None,
-            type=str,
-            help="Amount of physical RAM")
+    argparser.add_argument(
+        "-R", "--realmem", default=None, type=str, help="Amount of physical RAM"
+    )
 
-    argparser.add_argument('-K', '--kernel',
-            default=None,
-            type=str,
-            help="Path to kernel image")
+    argparser.add_argument(
+        "-K", "--kernel", default=None, type=str, help="Path to kernel image"
+    )
 
-    filter_group = argparser.add_argument_group('Filter')
-    filter_group.add_argument('-P', '--processfilter',
-            default=None,
-            type=str,
-            help="Process filter regex")
+    filter_group = argparser.add_argument_group("Filter")
+    filter_group.add_argument(
+        "-P", "--processfilter", default=None, type=str, help="Process filter regex"
+    )
 
-    filter_group.add_argument('-M', '--mapfilter',
-            default=None,
-            type=str,
-            help="Process map regex")
+    filter_group.add_argument(
+        "-M", "--mapfilter", default=None, type=str, help="Process map regex"
+    )
 
-    filter_group.add_argument('-U', '--userfilter',
-            default=None,
-            type=str,
-            help="Process users regex")
+    filter_group.add_argument(
+        "-U", "--userfilter", default=None, type=str, help="Process users regex"
+    )
 
-    show_group = argparser.add_argument_group('Show')
-    show_group.add_argument('-m', '--mappings',
-            action='store_true',
-            help="Show mappings")
+    show_group = argparser.add_argument_group("Show")
+    show_group.add_argument(
+        "-m", "--mappings", action="store_true", help="Show mappings"
+    )
 
-    show_group.add_argument('-u', '--users',
-            action='store_true',
-            help="Show users")
+    show_group.add_argument("-u", "--users", action="store_true", help="Show users")
 
-    show_group.add_argument('-w', '--system',
-            action='store_true',
-            help="Show whole system")
+    show_group.add_argument(
+        "-w", "--system", action="store_true", help="Show whole system"
+    )
 
-    show_group.add_argument('-p', '--percent',
-            action='store_true',
-            help="Show percentage")
+    show_group.add_argument(
+        "-p", "--percent", action="store_true", help="Show percentage"
+    )
 
-    show_group.add_argument('-k', '--abbreviate',
-            action='store_true',
-            help="Show unit suffixes")
+    show_group.add_argument(
+        "-k", "--abbreviate", action="store_true", help="Show unit suffixes"
+    )
 
-    show_group.add_argument('-t', '--totals',
-            action='store_true',
-            help="Show totals")
+    show_group.add_argument("-t", "--totals", action="store_true", help="Show totals")
 
-    sort_group = argparser.add_argument_group('Sort')
-    sort_group.add_argument('-n', '--numeric',
-            action='store_true',
-            help="Numeric sort")
+    sort_group = argparser.add_argument_group("Sort")
+    sort_group.add_argument("-n", "--numeric", action="store_true", help="Numeric sort")
 
-    sort_group.add_argument('-s', '--sort',
-            default=None,
-            type=str,
-            help="Field to sort on")
+    sort_group.add_argument(
+        "-s", "--sort", default=None, type=str, help="Field to sort on"
+    )
 
-    sort_group.add_argument('-r', '--reverse',
-            action='store_true',
-            help="Reverse sort")
+    sort_group.add_argument("-r", "--reverse", action="store_true", help="Reverse sort")
 
-    width_group = argparser.add_argument_group('Width')
-    width_group.add_argument('--cmd-width',
-            default=-1,
-            type=int,
-            help="Text width for commands (0=as needed)")
+    width_group = argparser.add_argument_group("Width")
+    width_group.add_argument(
+        "--cmd-width",
+        default=-1,
+        type=int,
+        help="Text width for commands (0=as needed)",
+    )
 
-    width_group.add_argument('--name-width',
-            default=-1,
-            type=int,
-            help="Text width for command names (0=as needed)")
+    width_group.add_argument(
+        "--name-width",
+        default=-1,
+        type=int,
+        help="Text width for command names (0=as needed)",
+    )
 
-    width_group.add_argument('--user-width',
-            default=-1,
-            type=int,
-            help="Text width for user names (0=as needed)")
+    width_group.add_argument(
+        "--user-width",
+        default=-1,
+        type=int,
+        help="Text width for user names (0=as needed)",
+    )
 
-    width_group.add_argument('--mapping-width',
-            default=-1,
-            type=int,
-            help="Text width for mapping names (0=as needed)")
+    width_group.add_argument(
+        "--mapping-width",
+        default=-1,
+        type=int,
+        help="Text width for mapping names (0=as needed)",
+    )
 
-    argparser.add_argument('-S', '--source',
-            default=None,
-            type=str,
-            help="/proc data source")
-            
-    argparser.add_argument( '--pid',
-            default=None,
-            type=int,
-            help="Show just process memory based on one pid")
-            
+    argparser.add_argument(
+        "-S", "--source", default=None, type=str, help="/proc data source"
+    )
+
+    argparser.add_argument(
+        "--pid",
+        default=None,
+        type=int,
+        help="Show just process memory based on one pid",
+    )
+
     return argparser.parse_args()
 
 
@@ -771,5 +921,5 @@ def main():
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
