@@ -16,6 +16,7 @@ import os
 import pwd
 import re
 import sys
+from multiprocessing import Pool, cpu_count
 from typing import Dict, List, Optional, Sized, Union
 
 
@@ -223,8 +224,12 @@ def maptotals(pids):
 
 
 def pidtotals(pid) -> Dict[str, int]:
-    maps = pidmaps(pid)
+    try:
+        maps = pidmaps(pid)
+    except:
+        return dict(pid=pid, maps=0)
     t = dict(
+        pid=pid,
         size=0,
         rss=0,
         pss=0,
@@ -344,18 +349,14 @@ def filters(opt, arg, *sources) -> bool:
 
 
 def processtotals(pids):
+    filtered_pids = filter(lambda pid: not filters(options.processfilter, pid, proc.pidcmd) and
+                                       not filters(options.userfilter, pid, proc.pidusername),
+                           pids)
     totals = {}
-    for pid in pids:
-        if filters(options.processfilter, pid, proc.pidcmd) or filters(
-            options.userfilter, pid, proc.pidusername
-        ):
-            continue
-        try:
-            p = pidtotals(pid)
+    with Pool(processes=cpu_count()) as pool:
+        for p in pool.map(pidtotals, filtered_pids):
             if p["maps"] != 0:
-                totals[pid] = p
-        except:
-            continue
+                totals[p["pid"]] = p
     return totals
 
 
