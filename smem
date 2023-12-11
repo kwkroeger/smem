@@ -12,6 +12,7 @@ from __future__ import print_function
 
 import argparse
 import errno
+import functools
 import os
 import pwd
 import re
@@ -146,7 +147,13 @@ def pidmaps(pid) -> Dict[int, Dict[str, int]]:
     start = None
     seen = False
     empty = True
-    for l in proc.mapdata(pid):
+    warned = False
+    try:
+        mapdata = proc.mapdata(pid)
+    except:
+        return {}
+
+    for l in mapdata:
         empty = False
         f = l.split()
         if f[-1] == "kB":
@@ -170,6 +177,7 @@ def pidmaps(pid) -> Dict[int, Dict[str, int]]:
 
     if not empty and not seen and not warned:
         print("Warning: Kernel does not appear to support PSS measurement")
+        warned = True
         if not options.sort:
             options.sort = "rss"
 
@@ -183,14 +191,15 @@ def pidmaps(pid) -> Dict[int, Dict[str, int]]:
 
 
 def maptotals(pids):
+    filtered_pids = filter(lambda pid: not filters(options.processfilter, pid, proc.pidcmd) and
+                                       not filters(options.userfilter, pid, proc.pidusername),
+                           pids)
+
     totals = {}
-    for pid in pids:
-        if filters(options.processfilter, pid, proc.pidcmd) or filters(
-            options.userfilter, pid, proc.pidusername
-        ):
-            continue
-        try:
-            maps = pidmaps(pid)
+    with Pool(processes=cpu_count()) as pool:
+        for maps in pool.map(pidmaps, filtered_pids):
+            if len(maps) == 0:
+                continue
             seen = {}
             for m in list(maps.keys()):
                 name = maps[m]["name"]
@@ -218,16 +227,46 @@ def maptotals(pids):
                     t["pids"] += 1
                     seen[name] = 1
                 totals[name] = t
-        except EnvironmentError:
-            continue
+
     return totals
 
-
-def pidtotals(pid) -> Dict[str, int]:
+def pidmaps_rollup(pid) -> Dict[str, int]:
     try:
-        maps = pidmaps(pid)
+        smaps_rollup_lines = open("/proc/%s/smaps_rollup" % pid).read().splitlines(True)
     except:
+        return {}
+    header = smaps_rollup_lines[0]
+    stats = smaps_rollup_lines[1:]
+    maps = {}
+
+    header_parts = header.split()
+    start, end = header_parts[0].split("-")
+    start = int(start, 16)
+    name = "<rollup>"
+    if len(header_parts) > 5:
+        name = header_parts[5]
+    maps[start] = dict(
+        end=int(end, 16),
+        mode=header_parts[1],
+        offset=int(header_parts[2], 16),
+        device=header_parts[3],
+        inode=header_parts[4],
+        name=name,
+    )
+
+    for stat in stats:
+        key = stat[0:16].rstrip(': ')
+        value = stat[17:-3].strip()
+        maps[start][key.lower()] = int(value)
+
+    return maps
+
+
+def pidtotals(pid, pidmaps_f=pidmaps) -> Dict[str, int]:
+    maps = pidmaps_f(pid)
+    if len(maps) == 0:
         return dict(pid=pid, maps=0)
+
     t = dict(
         pid=pid,
         size=0,
@@ -250,42 +289,44 @@ def pidtotals(pid) -> Dict[str, int]:
     return t
 
 
-def usertotals(pids):
+def usertotals(pids, pidmaps_f=pidmaps):
+    filtered_pids = list(filter(lambda p: not filters(options.processfilter, p, proc.pidcmd) and
+                                          not filters(options.userfilter, p, proc.pidusername),
+                                pids))
+
     totals = {}
-    for pid in pids:
-        if filters(options.processfilter, pid, proc.pidcmd) or filters(
-            options.userfilter, pid, proc.pidusername
-        ):
-            continue
-        try:
-            maps = pidmaps(pid)
+    with Pool(processes=cpu_count()) as pool:
+        all_maps = pool.map(pidmaps_f, filtered_pids)
+        for i in range(len(all_maps)):
+            maps = all_maps[i]
+            pid = filtered_pids[i]
             if len(maps) == 0:
                 continue
-        except EnvironmentError:
-            continue
-        user = proc.piduser(pid)
-        if user not in totals:
-            t = dict(
-                size=0,
-                rss=0,
-                pss=0,
-                shared_clean=0,
-                shared_dirty=0,
-                private_clean=0,
-                count=0,
-                private_dirty=0,
-                referenced=0,
-                swap=0,
-            )
-        else:
-            t = totals[user]
+            user = proc.piduser(pid)
 
-        for m in list(maps.keys()):
-            for k in t:
-                t[k] += maps[m].get(k, 0)
+            if user not in totals:
+                t = dict(
+                    size=0,
+                    rss=0,
+                    pss=0,
+                    shared_clean=0,
+                    shared_dirty=0,
+                    private_clean=0,
+                    count=0,
+                    private_dirty=0,
+                    referenced=0,
+                    swap=0,
+                )
+            else:
+                t = totals[user]
 
-        t["count"] += 1
-        totals[user] = t
+            for m in list(maps.keys()):
+                for k in t:
+                    t[k] += maps[m].get(k, 0)
+
+            t["count"] += 1
+            totals[user] = t
+
     return totals
 
 
@@ -348,15 +389,16 @@ def filters(opt, arg, *sources) -> bool:
     return True
 
 
-def processtotals(pids):
+def processtotals(pids, pidmaps_f=pidmaps):
     filtered_pids = filter(lambda pid: not filters(options.processfilter, pid, proc.pidcmd) and
                                        not filters(options.userfilter, pid, proc.pidusername),
                            pids)
     totals = {}
     with Pool(processes=cpu_count()) as pool:
-        for p in pool.map(pidtotals, filtered_pids):
+        for p in pool.map(functools.partial(pidtotals, pidmaps_f=pidmaps_f), filtered_pids):
             if p["maps"] != 0:
                 totals[p["pid"]] = p
+
     return totals
 
 
@@ -371,9 +413,9 @@ def widthstr(field, width, default) -> str:
     return "%-{size}.{size}s".format(size=size)
 
 
-def showpids() -> None:
+def showpids(pidmaps_f=pidmaps) -> None:
     p = proc.pids()
-    pt = processtotals(p)
+    pt = processtotals(p, pidmaps_f)
 
     def showuser(p):
         if options.numeric:
@@ -381,7 +423,7 @@ def showpids() -> None:
         return proc.pidusername(p)
 
     fields = dict(
-        pid=("PID", lambda n: n, "% 5s", lambda x: len(pt), "process ID"),
+        pid=("PID", lambda n: n, "% 6s", lambda x: len(pt), "process ID"),
         user=(
             "User",
             showuser,
@@ -522,10 +564,10 @@ def showmaps() -> None:
     showtable(list(pt.keys()), fields, columns.split(), options.sort or "pss")
 
 
-def showusers() -> None:
+def showusers(pidmaps_f=pidmaps) -> None:
 
     p = proc.pids()
-    pt = usertotals(p)
+    pt = usertotals(p, pidmaps_f=pidmaps_f)
 
     def showuser(u):
         if options.numeric:
@@ -905,17 +947,20 @@ def main() -> None:
     options = parse_arguments(sys.argv)
     ignore_autosize = set()
 
+    # Check if Linux kernel supports smaps_rollup
+    pidmaps_f = pidmaps_rollup if os.access("/proc/%s/smaps_rollup" % os.getpid(), os.R_OK) else pidmaps
+
     proc = ProcessData()
 
     try:
         if options.mappings:
             showmaps()
         elif options.users:
-            showusers()
+            showusers(pidmaps_f)
         elif options.system:
             showsystem()
         else:
-            showpids()
+            showpids(pidmaps_f)
     except IOError as e:
         if e.errno == errno.EPIPE:
             pass
