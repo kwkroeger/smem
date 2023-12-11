@@ -68,6 +68,7 @@ class MemData(Proc):
     """Class accessing and storing /proc/meminfo data"""
 
     def __init__(self) -> None:
+        super().__init__()
         self._memdata = {}
 
         regex = re.compile("(?P<name>\\S+):\\s+(?P<amount>\\d+) kB")
@@ -85,6 +86,7 @@ class ProcessData(Proc):
     """Helper class to handle /proc/<pid> filesystem data"""
 
     def __init__(self) -> None:
+        super().__init__()
         self._uidcache = UIDCache()
 
     def _iskernel(self, pid):
@@ -230,7 +232,8 @@ def maptotals(pids):
 
     return totals
 
-def pidmaps_rollup(pid) -> Dict[str, int]:
+
+def pidmaps_rollup(pid) -> Dict[int, Dict[str, int]]:
     try:
         smaps_rollup_lines = open("/proc/%s/smaps_rollup" % pid).read().splitlines(True)
     except:
@@ -242,9 +245,7 @@ def pidmaps_rollup(pid) -> Dict[str, int]:
     header_parts = header.split()
     start, end = header_parts[0].split("-")
     start = int(start, 16)
-    name = "<rollup>"
-    if len(header_parts) > 5:
-        name = header_parts[5]
+    name = header_parts[5] if len(header_parts) > 5 else "<rollup>"
     maps[start] = dict(
         end=int(end, 16),
         mode=header_parts[1],
